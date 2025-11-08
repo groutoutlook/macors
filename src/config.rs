@@ -14,7 +14,7 @@ use {
 pub struct Config {
     #[serde(default = "default_stop_keystrokes")]
     /// The keystrokes which, when pressed, stop macro recording or playback.
-    pub stop_keystrokes: Vec<rdev::Key>,
+    pub stop_keystrokes: Vec<rdevin::Key>,
 
     #[serde(default)]
     pub wait_strategy: WaitStrategy,
@@ -39,7 +39,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            stop_keystrokes: vec![rdev::Key::Escape, rdev::Key::Escape, rdev::Key::Escape],
+            stop_keystrokes: vec![rdevin::Key::Escape, rdevin::Key::Escape, rdevin::Key::Escape],
             wait_strategy: WaitStrategy::ConstantMS(100),
             countdown_seconds: 3,
             record_non_drag_mouse_moves: false,
@@ -48,8 +48,8 @@ impl Default for Config {
     }
 }
 
-fn default_stop_keystrokes() -> Vec<rdev::Key> {
-    vec![rdev::Key::Escape, rdev::Key::Escape, rdev::Key::Escape]
+fn default_stop_keystrokes() -> Vec<rdevin::Key> {
+    vec![rdevin::Key::Escape, rdevin::Key::Escape, rdevin::Key::Escape]
 }
 fn default_countdown_seconds() -> u64 {
     3

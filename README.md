@@ -6,7 +6,7 @@ All recorded macros are stored as `.toml`  and can be manually edited.
 ## Installation
 currently unreleased - so pull code and `cargo install --path .`
 
-also see: https://github.com/Narsil/rdev?tab=readme-ov-file#os-caveats
+also see: https://github.com/Narsil/rdevin?tab=readme-ov-file#os-caveats
 
 ## Usage
 **Recording a Macro**:
@@ -17,7 +17,7 @@ macors rec mymacro
 hit ESC ESC ESC to save.
 ```
 
-NOTE due to limitations of rdev this will exiting will generate a silent panic
+NOTE due to limitations of rdevin this will exiting will generate a silent panic
 (so it may look like an error but it's not).
 
 **Playing Back a Macro**:

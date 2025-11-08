@@ -1,6 +1,6 @@
 use {
     crate::config::{self, Config, WaitStrategy},
-    rdev::EventType,
+    rdevin::EventType,
     std::{cell::RefCell, fs, rc::Rc, thread, time::Instant},
 };
 
@@ -38,7 +38,7 @@ pub fn record(cfg: &Config, name: String, description: String) {
     let cfg_ = cfg.clone();
     let mcro_ = mcro.clone();
     let recent_keys_ = recent_keys.clone();
-    let callback = move |event: rdev::Event| {
+    let callback = move |event: rdevin::Event| {
         let op_ev = match event.event_type {
             EventType::KeyPress(key) => {
                 recent_keys_.borrow_mut().push(key);
@@ -142,7 +142,7 @@ pub fn record(cfg: &Config, name: String, description: String) {
             )
             .unwrap();
 
-            // exit with a silent panic (as you can't exit the listen loop within rdev currently)
+            // exit with a silent panic (as you can't exit the listen loop within rdevin currently)
             let _ = std::fs::File::create("/dev/null").map(|_f| -> Result<(), std::io::Error> {
                 std::panic::set_hook(Box::new(|_| {})); // Silence panic
                 panic!("silent panic");
@@ -150,7 +150,7 @@ pub fn record(cfg: &Config, name: String, description: String) {
         }
     };
 
-    if let Err(_e) = rdev::listen(callback.clone()) {
+    if let Err(_e) = rdevin::listen(callback.clone()) {
         // ignore the error which will occur at the end of the recording
     }
 }
@@ -184,8 +184,8 @@ pub fn start_playback(_cfg: &Config, name: &str) {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Event {
-    KeyPress(rdev::Key),
-    KeyRelease(rdev::Key),
+    KeyPress(rdevin::Key),
+    KeyRelease(rdevin::Key),
     MousePress(MouseEventButton),
     MouseRelease(MouseEventButton),
     MouseMove(MouseEventMove),
@@ -197,7 +197,7 @@ pub enum Event {
 pub struct MouseEventButton {
     pub x: f64,
     pub y: f64,
-    pub button: rdev::Button,
+    pub button: rdevin::Button,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
@@ -210,33 +210,33 @@ impl Event {
     pub fn simulate(&self) {
         match self {
             Event::KeyPress(key) => {
-                let ev_type = rdev::EventType::KeyPress(*key);
-                rdev::simulate(&ev_type).unwrap();
+                let ev_type = rdevin::EventType::KeyPress(*key);
+                rdevin::simulate(&ev_type).unwrap();
             }
             Event::KeyRelease(key) => {
-                let ev_type = rdev::EventType::KeyRelease(*key);
-                rdev::simulate(&ev_type).unwrap();
+                let ev_type = rdevin::EventType::KeyRelease(*key);
+                rdevin::simulate(&ev_type).unwrap();
             }
             Event::MousePress(m) => {
                 let MouseEventButton { x, y, button } = m;
-                let ev_type = rdev::EventType::MouseMove { x: *x, y: *y };
-                rdev::simulate(&ev_type).unwrap();
+                let ev_type = rdevin::EventType::MouseMove { x: *x, y: *y };
+                rdevin::simulate(&ev_type).unwrap();
                 thread::sleep(std::time::Duration::from_millis(1));
-                let ev_type = rdev::EventType::ButtonPress(*button);
-                rdev::simulate(&ev_type).unwrap();
+                let ev_type = rdevin::EventType::ButtonPress(*button);
+                rdevin::simulate(&ev_type).unwrap();
             }
             Event::MouseMove(m) => {
                 let MouseEventMove { x, y } = m;
-                let ev_type = rdev::EventType::MouseMove { x: *x, y: *y };
-                rdev::simulate(&ev_type).unwrap();
+                let ev_type = rdevin::EventType::MouseMove { x: *x, y: *y };
+                rdevin::simulate(&ev_type).unwrap();
             }
             Event::MouseRelease(m) => {
                 let MouseEventButton { x, y, button } = m;
-                let ev_type = rdev::EventType::MouseMove { x: *x, y: *y };
-                rdev::simulate(&ev_type).unwrap();
+                let ev_type = rdevin::EventType::MouseMove { x: *x, y: *y };
+                rdevin::simulate(&ev_type).unwrap();
                 thread::sleep(std::time::Duration::from_millis(1));
-                let ev_type = rdev::EventType::ButtonRelease(*button);
-                rdev::simulate(&ev_type).unwrap();
+                let ev_type = rdevin::EventType::ButtonRelease(*button);
+                rdevin::simulate(&ev_type).unwrap();
             }
             Event::Wait(ms) => std::thread::sleep(std::time::Duration::from_millis(*ms)),
         }
