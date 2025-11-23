@@ -1,12 +1,11 @@
 # MACORS
 
-A cross-platform recording and playback system for keyboard and mouse macros.
+Cross-platform recording and playback system for keyboard and mouse macros.
 All recorded macros are stored as `.toml`  and can be manually edited.
+- `.json` is also supported.
 
 ## Installation
-currently unreleased - so pull code and `cargo install --path .`
-
-also see: https://github.com/Narsil/rdevin?tab=readme-ov-file#os-caveats
+Currently unreleased - so pull code.
 
 ## Usage
 **Recording a Macro**:
