@@ -256,16 +256,42 @@ fn main() -> Result<(), Error> {
 
             let mut shown = 0usize;
             let mut stats: HashMap<String, usize> = HashMap::new();
-            for ev in &evs.events {
+            let mut idx = 0usize;
+            while idx < evs.events.len() {
+                let ev = &evs.events[idx];
+
                 if !all && matches!(ev, Event::Wait(_)) {
+                    idx += 1;
                     continue;
                 }
+
+                if let Event::MousePress(_) = ev {
+                    if let Some(collapse) = try_collapse_click(&evs.events, idx) {
+                        shown += 1;
+                        if !stat {
+                            let mut msg = format!("click on ({}, {})", collapse.x, collapse.y);
+                            if *all && collapse.wait_ms_total > 0 {
+                                msg.push_str(&format!(" (+wait {} ms)", collapse.wait_ms_total));
+                            }
+                            println!("{:>4}: {}", shown, msg);
+                        }
+                        if *stat && *all && collapse.waits_consumed > 0 {
+                            *stats.entry("wait".to_string()).or_insert(0) += collapse.waits_consumed;
+                        }
+                        let label = format!("click.{:?}", collapse.button);
+                        *stats.entry(label).or_insert(0) += 1;
+                        idx = collapse.release_idx + 1;
+                        continue;
+                    }
+                }
+
                 shown += 1;
                 if !stat {
                     println!("{:>4}: {}", shown, describe_event(ev));
                 }
                 let label = stat_label(ev);
                 *stats.entry(label).or_insert(0) += 1;
+                idx += 1;
             }
 
             if *stat {
@@ -392,6 +418,53 @@ fn describe_event(ev: &Event) -> String {
         Event::KeyPress(k) => format!("key_press {:?}", k),
         Event::KeyRelease(k) => format!("key_release {:?}", k),
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClickCollapse<'a> {
+    release_idx: usize,
+    waits_consumed: usize,
+    wait_ms_total: u64,
+    button: &'a rdevin::Button,
+    x: i64,
+    y: i64,
+}
+
+fn is_same_click(a: &MouseEventButton, b: &MouseEventButton) -> bool {
+    a.button == b.button && a.x == b.x && a.y == b.y
+}
+
+fn try_collapse_click<'a>(events: &'a [Event], start_idx: usize) -> Option<ClickCollapse<'a>> {
+    let Event::MousePress(press) = &events[start_idx] else {
+        return None;
+    };
+
+    let mut idx = start_idx + 1;
+    let mut waits_consumed = 0usize;
+    let mut wait_ms_total = 0u64;
+
+    while idx < events.len() {
+        match &events[idx] {
+            Event::Wait(ms) => {
+                waits_consumed += 1;
+                wait_ms_total += *ms;
+                idx += 1;
+            }
+            Event::MouseRelease(release) if is_same_click(press, release) => {
+                return Some(ClickCollapse {
+                    release_idx: idx,
+                    waits_consumed,
+                    wait_ms_total,
+                    button: &press.button,
+                    x: press.x as i64,
+                    y: press.y as i64,
+                });
+            }
+            _ => return None,
+        }
+    }
+
+    None
 }
 
 fn stat_label(ev: &Event) -> String {
