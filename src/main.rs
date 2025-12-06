@@ -78,6 +78,20 @@ enum Commands {
         )]
         action_flag: Option<String>,
     },
+    /// Clone a click group with an offset
+    Clone {
+        /// Name of the macro to edit
+        name: String,
+        /// Action selector identifying the click group (must start at mouse_press)
+        #[arg(short = 'a', long = "action", value_name = "ACTION")]
+        action: String,
+        /// Horizontal offset to apply to the cloned click
+        #[arg(short = 'x', long = "offset-x", default_value_t = 3.0)]
+        offset_x: f64,
+        /// Vertical offset to apply to the cloned click
+        #[arg(short = 'y', long = "offset-y", default_value_t = 3.0)]
+        offset_y: f64,
+    },
 }
 
 fn main() -> Result<(), Error> {
@@ -383,6 +397,89 @@ fn main() -> Result<(), Error> {
                 Err(e) => eprintln!("failed to launch editor: {e}"),
             }
         }
+        Commands::Clone {
+            name,
+            action,
+            offset_x,
+            offset_y,
+        } => {
+            let macros_dir = config::macros_path();
+            let file_path = macros_dir.join(format!("{}.toml", name));
+            let contents = match fs::read_to_string(&file_path) {
+                Ok(c) => c,
+                Err(_) => {
+                    eprintln!("macro \"{name}\" not found");
+                    return Ok(());
+                }
+            };
+
+            let mut mcro: Macro = match toml::from_str(&contents) {
+                Ok(evs) => evs,
+                Err(e) => {
+                    eprintln!("Failed to deserialize macro file: {e:?}");
+                    return Ok(());
+                }
+            };
+
+            let selector = match parse_action(action) {
+                Ok(sel) => sel,
+                Err(e) => {
+                    eprintln!("Invalid action: {e}");
+                    return Ok(());
+                }
+            };
+
+            if selector.ordinal == 0 {
+                eprintln!("Ordinal must be 1 or greater");
+                return Ok(());
+            }
+
+            let Some(event_idx) = find_event_index(&mcro.events, &selector) else {
+                eprintln!("No matching event found for action {action}");
+                return Ok(());
+            };
+
+            let Some(press) = mcro.events.get(event_idx) else {
+                eprintln!("Action index out of bounds");
+                return Ok(());
+            };
+
+            let (orig_x, orig_y) = match press {
+                Event::MousePress(m) => (m.x, m.y),
+                _ => {
+                    eprintln!("Action must reference a mouse_press that starts the click group");
+                    return Ok(());
+                }
+            };
+
+            if let Err(e) = clone_click_group(&mut mcro.events, event_idx, *offset_x, *offset_y) {
+                eprintln!("{e}");
+                return Ok(());
+            }
+
+            let toml_string = match toml::to_string(&mcro) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Failed to serialize macro: {e}");
+                    return Ok(());
+                }
+            };
+
+            if let Err(e) = fs::write(&file_path, toml_string) {
+                eprintln!("Failed to write macro file: {e}");
+                return Ok(());
+            }
+
+            println!(
+                "Cloned click from ({:.1}, {:.1}) to ({:.1}, {:.1}) with offsets ({:.1}, {:.1})",
+                orig_x,
+                orig_y,
+                orig_x + offset_x,
+                orig_y + offset_y,
+                offset_x,
+                offset_y
+            );
+        }
     }
     Ok(())
 }
@@ -465,6 +562,50 @@ fn try_collapse_click<'a>(events: &'a [Event], start_idx: usize) -> Option<Click
     }
 
     None
+}
+
+fn extend_release_with_trailing_waits(events: &[Event], release_idx: usize) -> usize {
+    let mut end = release_idx;
+    while end + 1 < events.len() {
+        match events[end + 1] {
+            Event::Wait(_) => end += 1,
+            _ => break,
+        }
+    }
+    end
+}
+
+fn clone_click_group(
+    events: &mut Vec<Event>,
+    start_idx: usize,
+    offset_x: f64,
+    offset_y: f64,
+) -> Result<(), String> {
+    let Some(collapse) = try_collapse_click(events, start_idx) else {
+        return Err("action must point to a mouse_press that has a matching mouse_release at the same coordinates".to_string());
+    };
+
+    let end_idx = extend_release_with_trailing_waits(events, collapse.release_idx);
+
+    let mut cloned: Vec<Event> = events[start_idx..=end_idx].to_vec();
+
+    for ev in cloned.iter_mut() {
+        match ev {
+            Event::MousePress(m) | Event::MouseRelease(m) => {
+                m.x += offset_x;
+                m.y += offset_y;
+            }
+            Event::MouseMove(m) => {
+                m.x += offset_x;
+                m.y += offset_y;
+            }
+            _ => {}
+        }
+    }
+
+    let insert_at = end_idx + 1;
+    events.splice(insert_at..insert_at, cloned);
+    Ok(())
 }
 
 fn stat_label(ev: &Event) -> String {
