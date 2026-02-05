@@ -44,6 +44,15 @@ enum Commands {
         #[arg(short = 'a', long = "action", value_name = "ACTION")]
         action: Option<String>,
     },
+    /// Runs a recorded macro relative to current mouse position
+    RunOffset {
+        /// Name of the macro to run
+        name: String,
+
+        /// Number of times to repeat the macro
+        #[arg(short = 'n', long = "repeat", default_value_t = 1)]
+        repeat: usize,
+    },
     /// List all recorded macros
     Ls,
     /// Show events in a macro with indices
@@ -202,6 +211,38 @@ fn main() -> Result<(), Error> {
                 } else {
                     start_playback(&cfg, name);
                 }
+            }
+        }
+        Commands::RunOffset { name, repeat } => {
+            let macros_dir = config::macros_path();
+            let file_path = macros_dir.join(format!("{}.toml", name));
+            if !file_path.exists() {
+                eprintln!("macro \"{name}\" not found");
+                return Ok(());
+            }
+
+            println!(
+                "Running macro (offset mode): {} for {} time(s)",
+                name, repeat
+            );
+
+            // Countdown and start beep consistent with full playback
+            let secs = cfg.countdown_seconds;
+            println!("Playback starts in...");
+            for i in (1..=secs).rev() {
+                println!("{}...", i);
+                thread::sleep(Duration::from_millis(950));
+            }
+            println!("Begin!");
+            let middle_e_hz = 329;
+            let a_bit_more_than_a_second_and_a_half_ms = 100;
+            actually_beep::beep_with_hz_and_millis(
+                middle_e_hz,
+                a_bit_more_than_a_second_and_a_half_ms,
+            )
+            .unwrap();
+            for _ in 0..*repeat {
+                start_playback_with_offset(&cfg, name);
             }
         }
         Commands::Ls => {

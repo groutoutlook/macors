@@ -181,6 +181,53 @@ pub fn start_playback(_cfg: &Config, name: &str) {
     }
 }
 
+pub fn start_playback_with_offset(_cfg: &Config, name: &str) {
+    let macros_dir = config::macros_path();
+    let file_path = macros_dir.join(format!("{}.toml", name));
+
+    let Ok(contents) = fs::read_to_string(file_path) else {
+        println!("Macro not found");
+        return;
+    };
+
+    let evs: Macro = match toml::from_str(&contents) {
+        Ok(evs) => evs,
+        Err(e) => {
+            println!("Failed to deserialize macro file: {:?}", e);
+            return;
+        }
+    };
+
+    // Find the first mouse event to determine the offset
+    let mut first_mouse_event = None;
+    for ev in &evs.events {
+        match ev {
+            Event::MousePress(m) | Event::MouseRelease(m) => {
+                first_mouse_event = Some((m.x, m.y));
+                break;
+            }
+            Event::MouseMove(m) => {
+                first_mouse_event = Some((m.x, m.y));
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    let (dx, dy) = if let Some((fx, fy)) = first_mouse_event {
+        let device_state = device_query::DeviceState::new();
+        let mouse: device_query::MouseState = device_state.query_pointer();
+        let (cur_x, cur_y) = mouse.coords;
+        (cur_x as f64 - fx, cur_y as f64 - fy)
+    } else {
+        (0.0, 0.0)
+    };
+
+    for ev in evs.events {
+        ev.simulate_with_offset(dx, dy);
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Event {
@@ -208,6 +255,10 @@ pub struct MouseEventMove {
 
 impl Event {
     pub fn simulate(&self) {
+        self.simulate_with_offset(0.0, 0.0);
+    }
+
+    pub fn simulate_with_offset(&self, dx: f64, dy: f64) {
         match self {
             Event::KeyPress(key) => {
                 let ev_type = rdevin::EventType::KeyPress(*key);
@@ -219,7 +270,10 @@ impl Event {
             }
             Event::MousePress(m) => {
                 let MouseEventButton { x, y, button } = m;
-                let ev_type = rdevin::EventType::MouseMove { x: *x, y: *y };
+                let ev_type = rdevin::EventType::MouseMove {
+                    x: *x + dx,
+                    y: *y + dy,
+                };
                 rdevin::simulate(&ev_type).unwrap();
                 thread::sleep(std::time::Duration::from_millis(1));
                 let ev_type = rdevin::EventType::ButtonPress(*button);
@@ -227,12 +281,18 @@ impl Event {
             }
             Event::MouseMove(m) => {
                 let MouseEventMove { x, y } = m;
-                let ev_type = rdevin::EventType::MouseMove { x: *x, y: *y };
+                let ev_type = rdevin::EventType::MouseMove {
+                    x: *x + dx,
+                    y: *y + dy,
+                };
                 rdevin::simulate(&ev_type).unwrap();
             }
             Event::MouseRelease(m) => {
                 let MouseEventButton { x, y, button } = m;
-                let ev_type = rdevin::EventType::MouseMove { x: *x, y: *y };
+                let ev_type = rdevin::EventType::MouseMove {
+                    x: *x + dx,
+                    y: *y + dy,
+                };
                 rdevin::simulate(&ev_type).unwrap();
                 thread::sleep(std::time::Duration::from_millis(1));
                 let ev_type = rdevin::EventType::ButtonRelease(*button);
